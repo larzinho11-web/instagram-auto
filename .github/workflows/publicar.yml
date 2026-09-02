@@ -1,0 +1,56 @@
+name: Publicar no Instagram
+
+on:
+  # Roda de hora em hora e publica o que estiver na hora.
+  schedule:
+    - cron: "0 * * * *"
+  # Permite disparar manualmente pela aba Actions do GitHub.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Simular sem publicar de verdade?"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publicar-instagram
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Publicar posts pendentes
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+        run: python publicar.py
+
+      - name: Salvar a fila atualizada
+        if: always()
+        run: |
+          if [[ -n "$(git status --porcelain fila.json)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add fila.json
+            git commit -m "chore: atualiza fila apos publicacao"
+            git push
+          else
+            echo "Nada mudou na fila."
+          fi
