@@ -1,0 +1,9 @@
+[
+  {
+    "id": "exemplo-001",
+    "imagem": "posts/exemplo.jpg",
+    "legenda": "Escreva aqui a legenda do post.\n\n#hashtag1 #hashtag2",
+    "publicar_em": "2026-09-10T09:00:00-03:00",
+    "publicado": false
+  }
+]
