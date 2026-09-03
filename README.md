@@ -87,20 +87,65 @@ Se algo falhar, ele registra `ultimo_erro` para você ver o que houve.
 
 ---
 
-## Requisitos da imagem (regras do Instagram)
+## Publicando um Reels
+
+Igual à foto, só que o arquivo é um vídeo. O robô reconhece pela extensão
+(`.mp4` ou `.mov`) e publica como Reels automaticamente:
+
+```json
+{
+  "id": "reels-dica-1",
+  "video": "posts/dica-precificacao.mp4",
+  "legenda": "Texto do Reels.\n\n#advocacia",
+  "publicar_em": "2026-09-15T09:00:00-03:00",
+  "publicado": false
+}
+```
+
+Campos extras que só valem para Reels:
+
+- `"capa": "posts/capa.jpg"` — imagem de capa personalizada
+- `"thumb_offset": 1500` — usa o frame do milissegundo indicado como capa
+- `"no_feed": false` — publica só na aba Reels, sem aparecer no feed
+
+Se quiser forçar o tipo (por exemplo, um `.mp4` que deve virar foto, ou o
+contrário), use `"tipo": "reels"` ou `"tipo": "foto"`.
+
+> Reels demora mais: a Meta precisa transcodificar o vídeo. O robô espera
+> até 15 minutos pelo processamento antes de desistir.
+
+---
+
+## Requisitos da mídia (regras do Instagram)
+
+**Foto**
 
 - Formato **JPEG** (o mais seguro; PNG às vezes é recusado)
 - Proporção entre **4:5** e **1.91:1** — o quadrado 1:1 sempre funciona
 - Até 8 MB
 - Largura recomendada: 1080 px
 
+**Vídeo (Reels)**
+
+- Container **MP4** ou **MOV**, vídeo em **H.264** e áudio em **AAC**
+- Entre 3 segundos e 90 segundos
+- Proporção **9:16** para ocupar a tela inteira (aceita de 0.01:1 a 10:1)
+- Largura máxima 1920 px, 23 a 60 FPS
+- **Até 100 MB** — que é também o limite de arquivo do GitHub, então
+  vídeos maiores precisam ser hospedados fora e referenciados por URL completa
+
 ---
 
 ## Testando sem publicar
 
-Na aba **Actions → Publicar no Instagram → Run workflow**, marque
-**"Simular sem publicar de verdade"**. Ele roda tudo e mostra os logs,
-mas não posta nada.
+Duas formas, ambas na aba **Actions**:
+
+**Verificar conexão com o Instagram** → Run workflow. Confere se o token e a
+conta estão válidos e mostra quantas publicações restam na cota do dia.
+Não toca na fila.
+
+**Publicar no Instagram** → Run workflow, marcando **"Simular sem publicar de
+verdade"**. Percorre a fila e mostra o que faria, sem postar nada.
 
 ---
 
@@ -123,10 +168,11 @@ quando o robô acorda (sempre em UTC — Brasília é UTC−3):
 
 ## Limitações
 
-- **Só fotos.** Vídeos e Reels usam um fluxo diferente na API (upload
-  assíncrono) — dá para adicionar depois.
-- **Carrossel** também exige fluxo próprio, não está incluído.
-- O Instagram limita **25 publicações por 24 horas** via API.
+- **Foto única e Reels.** Carrossel (várias imagens num post) exige um fluxo
+  próprio na API e não está incluído.
+- Vídeos acima de **100 MB** não cabem no GitHub — precisam de hospedagem externa.
+- O limite de publicações por 24 horas é definido pela Meta e varia por conta.
+  Rode o workflow **"Verificar conexão com o Instagram"** para ver o seu.
 - A conta precisa continuar **profissional (Business/Creator)** e **pública**.
 
 ---

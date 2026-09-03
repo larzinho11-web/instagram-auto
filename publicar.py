@@ -40,9 +40,14 @@ DRY_RUN = os.environ.get("DRY_RUN", "").strip() == "1"
 # Fuso de Brasilia (UTC-3)
 FUSO_BR = timezone(timedelta(hours=-3))
 
-# Quantas vezes checar se o container de midia terminou de processar
-MAX_TENTATIVAS_STATUS = 30
-INTERVALO_STATUS = 5  # segundos
+# Quantas vezes checar se o container de midia terminou de processar.
+# Video demora muito mais que foto: a Meta precisa transcodificar.
+MAX_TENTATIVAS_FOTO = 30      # ~2,5 min
+MAX_TENTATIVAS_VIDEO = 90     # ~15 min
+INTERVALO_STATUS = 5          # segundos
+
+# Extensoes reconhecidas como video (publicadas como Reels)
+EXTENSOES_VIDEO = (".mp4", ".mov")
 
 
 def limpar_segredos(texto: str) -> str:
@@ -131,13 +136,40 @@ def chamar_api(metodo: str, endpoint: str, params: dict) -> dict:
     return corpo
 
 
-def criar_container(imagem_url: str, legenda: str) -> str:
-    log(f"  criando container de midia...")
-    resp = chamar_api(
-        "POST",
-        f"{IG_USER_ID}/media",
-        {"image_url": imagem_url, "caption": legenda},
-    )
+def eh_video(post: dict, caminho: str) -> bool:
+    """
+    Decide se o post e video (Reels) ou foto.
+
+    Prioridade: campo 'tipo' explicito na fila; senao, a extensao do arquivo.
+    """
+    tipo = str(post.get("tipo", "")).strip().lower()
+    if tipo in ("reels", "reel", "video", "video"):
+        return True
+    if tipo in ("foto", "imagem", "image", "photo"):
+        return False
+    return caminho.lower().split("?")[0].endswith(EXTENSOES_VIDEO)
+
+
+def criar_container(midia_url: str, legenda: str, post: dict, video: bool) -> str:
+    if video:
+        log("  criando container de Reels...")
+        params = {
+            "media_type": "REELS",
+            "video_url": midia_url,
+            "caption": legenda,
+        }
+        # Opcionais, so entram se o post pedir
+        if post.get("capa"):
+            params["cover_url"] = url_publica_da_imagem(post["capa"])
+        if post.get("thumb_offset") is not None:
+            params["thumb_offset"] = post["thumb_offset"]
+        # Por padrao o Reels tambem aparece no feed
+        params["share_to_feed"] = "true" if post.get("no_feed", True) else "false"
+    else:
+        log("  criando container de foto...")
+        params = {"image_url": midia_url, "caption": legenda}
+
+    resp = chamar_api("POST", f"{IG_USER_ID}/media", params)
     container_id = resp.get("id")
     if not container_id:
         raise RuntimeError(f"resposta sem id do container: {resp}")
@@ -145,9 +177,17 @@ def criar_container(imagem_url: str, legenda: str) -> str:
     return container_id
 
 
-def esperar_container_pronto(container_id: str) -> None:
-    """A Meta processa a midia de forma assincrona. Esperamos ficar FINISHED."""
-    for tentativa in range(1, MAX_TENTATIVAS_STATUS + 1):
+def esperar_container_pronto(container_id: str, video: bool) -> None:
+    """
+    A Meta processa a midia de forma assincrona. Esperamos ficar FINISHED.
+
+    Video leva bem mais tempo que foto porque precisa ser transcodificado.
+    """
+    maximo = MAX_TENTATIVAS_VIDEO if video else MAX_TENTATIVAS_FOTO
+    if video:
+        log(f"  aguardando a Meta processar o video (ate ~{maximo * INTERVALO_STATUS // 60} min)...")
+
+    for tentativa in range(1, maximo + 1):
         resp = chamar_api("GET", container_id, {"fields": "status_code,status"})
         status = resp.get("status_code")
 
@@ -157,7 +197,9 @@ def esperar_container_pronto(container_id: str) -> None:
         if status == "ERROR":
             raise RuntimeError(f"processamento da midia falhou: {resp.get('status')}")
 
-        log(f"  status={status} (tentativa {tentativa}/{MAX_TENTATIVAS_STATUS})")
+        # Video demora: nao poluir o log com uma linha a cada 5s
+        if not video or tentativa % 6 == 0 or tentativa <= 2:
+            log(f"  status={status} (tentativa {tentativa}/{maximo})")
         time.sleep(INTERVALO_STATUS)
 
     raise RuntimeError("tempo esgotado esperando o processamento da midia")
@@ -219,24 +261,26 @@ def main() -> None:
         identificador = post.get("id") or f"indice-{indice}"
         log(f"Post '{identificador}':")
 
-        imagem = post.get("imagem")
+        # 'imagem' e o nome historico do campo; 'video' e 'midia' tambem valem
+        midia = post.get("imagem") or post.get("video") or post.get("midia")
         legenda = post.get("legenda", "")
 
-        if not imagem:
-            log("  ERRO: campo 'imagem' ausente. Pulando.")
+        if not midia:
+            log("  ERRO: nenhum arquivo indicado (use 'imagem' ou 'video'). Pulando.")
             falhas += 1
             continue
 
         try:
-            imagem_url = url_publica_da_imagem(imagem)
-            log(f"  imagem: {imagem_url}")
+            video = eh_video(post, midia)
+            midia_url = url_publica_da_imagem(midia)
+            log(f"  {'video (Reels)' if video else 'foto'}: {midia_url}")
 
             if DRY_RUN:
                 log("  DRY_RUN ativo - nada foi publicado de verdade")
                 continue
 
-            container_id = criar_container(imagem_url, legenda)
-            esperar_container_pronto(container_id)
+            container_id = criar_container(midia_url, legenda, post, video)
+            esperar_container_pronto(container_id, video)
             post_id = publicar_container(container_id)
 
             post["publicado"] = True
