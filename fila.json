@@ -5,7 +5,7 @@
     "legenda": "Escreva aqui a legenda do post.\n\n#hashtag1 #hashtag2",
     "publicar_em": "2026-09-10T09:00:00-03:00",
     "publicado": false,
-    "ultimo_erro": "API respondeu 400 em 17841401234293518/media: {'message': 'API access blocked.', 'type': 'OAuthException', 'code': 200, 'fbtrace_id': 'Ag359YmR5ZIaGOfzRzmSjK9'}",
-    "ultima_tentativa": "2026-09-12T07:11:26.330002-03:00"
+    "ultimo_erro": "API respondeu 400 em 17841401234293518/media: {'message': 'API access blocked.', 'type': 'OAuthException', 'code': 200, 'fbtrace_id': 'AVbuFNvbRmI2s5UuW1NDHzf'}",
+    "ultima_tentativa": "2026-09-12T08:10:54.798357-03:00"
   }
 ]
